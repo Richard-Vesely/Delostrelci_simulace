@@ -28,6 +28,9 @@ const maxTrailLength = 500;
 // { minX, maxX, minY, maxY } in world units
 let axisBounds = null;
 
+// Frozen canvas size during simulation so the y-axis doesn't "expand" when layout shifts
+let simulationCanvasSize = null;
+
 // User Python functions
 let getX = null;
 let getY = null;
@@ -63,8 +66,11 @@ async function initPyodide() {
     }
 }
 
-// Resize canvas to match display size
+// Resize canvas to match display size (skipped while simulation runs to keep axis scale fixed)
 function resizeCanvasToDisplaySize() {
+    if (running && simulationCanvasSize) {
+        return simulationCanvasSize;
+    }
     const rect = canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
     
@@ -202,7 +208,9 @@ function startSimulation() {
 
     running = true;
     lastFrameTime = performance.now();
-    
+    // Freeze canvas size so scale (and y-axis) doesn't change when layout shifts during the run
+    simulationCanvasSize = resizeCanvasToDisplaySize();
+
     statusDiv.textContent = 'Simulace běží…';
     statusDiv.style.background = '#d1ecf1';
     statusDiv.style.color = '#0c5460';
@@ -216,6 +224,7 @@ function startSimulation() {
 // Stop simulation
 function stopSimulation(message = null) {
     running = false;
+    simulationCanvasSize = null;
     playBtn.disabled = false;
     
     if (animationFrameId) {
@@ -240,6 +249,7 @@ function resetSimulation() {
     t = 0;
     trail = [];
     axisBounds = null;
+    simulationCanvasSize = null;
     clearError();
     
     statusDiv.textContent = 'Python načten. Připraveno ke spuštění.';
@@ -325,8 +335,9 @@ function animate(currentTime) {
 // Render the canvas
 function render() {
     const size = resizeCanvasToDisplaySize();
-    const canvasW = size.width;
-    const canvasH = size.height;
+    // During simulation use frozen size so the graph scale (and y-axis) doesn't change frame-to-frame
+    const canvasW = (running && simulationCanvasSize) ? simulationCanvasSize.width : size.width;
+    const canvasH = (running && simulationCanvasSize) ? simulationCanvasSize.height : size.height;
     
     // Clear canvas
     ctx.clearRect(0, 0, canvasW, canvasH);
